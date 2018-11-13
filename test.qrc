@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qwebchannel.js</file>
+        <file>js/checkfp.js</file>
+    </qresource>
+</RCC>
