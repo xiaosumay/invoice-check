@@ -11,6 +11,9 @@ struct  Data {
     QString code;
     QString num;
     QString amount;
+
+    QString sheetname;
+    int     row;
 };
 
 class PageMgr : public QObject
@@ -38,6 +41,7 @@ private:
     QWebEngineView *view;
     QList<Data> list;
     QString filepath;
+    QString fileName;
 };
 
 #endif // PAGEMGR_H

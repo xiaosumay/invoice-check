@@ -1,5 +1,6 @@
 ﻿#include "pagemgr.h"
 
+#include <QApplication>
 #include <QWebEngineView>
 #include <QWebEnginePage>
 #include <QWebEngineSettings>
@@ -103,13 +104,13 @@ void PageMgr::onScreenshoted(int left, int top, int width, int height)
 
 QDebug operator<<(QDebug os, Data data)
 {
-    os << "(" << data.date << "," << data.code << "," << data.num << "," << data.amount << ")";
+    os << "(" << data.date << "," << data.code << "," << data.num << "," << data.amount << "," << data.sheetname << "," << data.row << ")";
     return os;
 }
 
 bool PageMgr::readXlsx()
 {
-    auto fileName = QFileDialog::getOpenFileName(0, tr("Open Excel"), QDir::homePath(), tr("Excel Files (*.xlsx)"));
+    fileName = QFileDialog::getOpenFileName(0, tr("Open Excel"), QDir::homePath(), tr("Excel Files (*.xlsx)"));
 
     if(!QFileInfo(fileName).isFile() || !fileName.endsWith("xlsx", Qt::CaseInsensitive)) {
         QMessageBox::critical(0, "Error", QStringLiteral("选择xlsx文件"));
@@ -126,32 +127,40 @@ bool PageMgr::readXlsx()
         xlsx.selectSheet(name);
 
         for( qint64 i = 2; i < 65536; ++i) {
+
             Data data{};
 
-            auto cell = xlsx.cellAt(i, 3);
-            if(cell) {
-                if(cell->isDateTime())
-                    data.date = cell->dateTime().toString("yyyyMMdd");
+            data.sheetname = name;
+            data.row = i;
+
+            auto date = xlsx.cellAt(i, 3);
+            if(date) {
+                if(date->isDateTime())
+                    data.date = date->dateTime().toString("yyyyMMdd");
                 else
-                    data.date = cell->value().toString();
+                    data.date = date->value().toString();
             }
 
-            cell = xlsx.cellAt(i, 4);
-            if(cell)
-                data.code = cell->value().toString();
+            auto code = xlsx.cellAt(i, 4);
+            if(code)
+                data.code = code->value().toString();
 
-            cell = xlsx.cellAt(i, 5);
-            if(cell)
-                data.num = cell->value().toString();
+            auto num = xlsx.cellAt(i, 5);
+            if(num)
+                data.num = num->value().toString();
 
-            cell = xlsx.cellAt(i, 6);
-            if(cell)
-                data.amount = cell->value().toString();
+            auto amount = xlsx.cellAt(i, 6);
+            if(amount)
+                data.amount = amount->value().toString();
 
             if(data.date.isEmpty() || data.code.isEmpty() || data.num.isEmpty() || data.amount.isEmpty())
                 break;
 
-            list.append(data);
+            auto check = xlsx.cellAt(i, 8);
+
+            if(!check || check->value().toString().isEmpty()) {
+                list.append(data);
+            }
         }
     }
 
@@ -161,8 +170,30 @@ bool PageMgr::readXlsx()
 void PageMgr::gotoNext()
 {
     if(list.isEmpty()) {
-        QMessageBox::information(0, "Title", QStringLiteral("file export finished, Please close this window!"));
+        view->hide();
+        QMessageBox::information(0, "Title", QStringLiteral("文件解析结束！自动关闭！"));
+        qApp->quit();
         return;
+    }
+
+    QXlsx::Document xlsx(fileName);
+
+    auto data = list.first();
+
+    if(xlsx.selectSheet(data.sheetname)) {
+        qDebug() << xlsx.currentWorksheet()->sheetName();
+    }
+
+
+    auto format = xlsx.rowFormat(data.row);
+    format.setFontColor(Qt::red);
+    format.setHorizontalAlignment(QXlsx::Format::AlignHCenter);
+    format.setVerticalAlignment(QXlsx::Format::AlignVCenter);
+
+    xlsx.write(data.row, 8, QStringLiteral("已查验"), format);
+
+    while(!xlsx.save()) {
+        QMessageBox::critical(0, "error", QStringLiteral("文件占用，关闭其他使用此 %1.xlsx 的程序!").arg(QFileInfo(fileName).baseName()));
     }
 
     list.removeFirst();
